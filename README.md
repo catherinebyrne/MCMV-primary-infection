@@ -10,4 +10,4 @@ Data files are described below.
 R files can be run in the following order
 1. combined_cytokines_immune_plot.r - This file compares how well a model with both cytokines and virus-specific CD8s vs just virus-specific CD8s clearing MCMV infection fits data. 
 2. mcmv_pomp_cytokines_analyze.r - This file allows the model with both cytokines and virus-specific CD8s to be fit to all mouse data and summarizes results.
-3. transient_2.r - This file analyzes the predicted viral dynamics when low doses of virus are given to mice. It predicts under what conditions a sucessful, unsuccessful, or transient infection will occur.
+3. transient_infection_analysis.r - This file analyzes the predicted viral dynamics when low doses of virus are given to mice. It predicts under what conditions a sucessful, unsuccessful, or transient infection will occur.
