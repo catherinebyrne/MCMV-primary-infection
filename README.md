@@ -14,4 +14,4 @@ R files can be run in the following order
 2. mcmv_pomp_cytokines_analyze.r - This file allows the model with both cytokines and virus-specific CD8s to be fit to all mouse data and summarizes results.
 3. transient_infection_analysis.r - This file analyzes the predicted viral dynamics when low doses of virus are given to mice. It predicts under what conditions a sucessful, unsuccessful, or transient infection will occur.
 
-Please note, the data files mcmv_sg_inoc_flow_results.csv and mcmv_sg_inoc_luminescence_results.csv  were used to produce the main results in the paper. The code can be edited to study how results are predicted to change when viral inoculations are delivered through intraperitoneal injection. 
+Please note, the data files mcmv_sg_inoc_flow_results.csv and mcmv_sg_inoc_luminescence_results.csv  were used to produce the main results in the paper. The code can be edited to study how results are predicted to change when viral inoculations are delivered through intraperitoneal injection. Further, because this code fits data using a stochastic method, results may slightly differ from those found in the paper.
