@@ -66,11 +66,11 @@ dat4$species <- factor(dat4$species, levels = c("Body","Salivary Glands","IE1"))
 dat4 = na.omit(dat4)
 
 model <- vectorfield(
-  Csnippet("DIs =eta*Vsr-delta*Is-m*Is*T;
-            DIb = eta2*Vbr-delta*Ib-m*Ib*T;
+  Csnippet("DIs =eta*Vsr-delta*Is-m1*Is*T;
+            DIb = eta2*Vbr-delta*Ib-m2*10*Ib*T;
             DT = alpha*(Ib+Is)/(Ib+Is+w+1)-(d+0.01)*T;
-            DVsr = p*Is-c*Vsr-mu/V_0*Vsr+mu/V_0*Vbr;
-            DVbr = p*Ib-c*Vbr+mu/V_0*Vsr-mu/V_0*Vbr;
+            DVsr = p1*Is-c*Vsr-mu*4.54/V_0*Vsr+mu/V_0*Vbr;
+            DVbr = p2*Ib-c*Vbr+mu*4.54/V_0*Vsr-mu/V_0*Vbr;
             DVs = DVsr;
             DVb = DVbr;"))
 
@@ -83,23 +83,23 @@ rproc <- Csnippet("
                   rate[0] = eta*Vsr;
                   dN[0] = rpois(rate[0]*dt);
                   rate[1] = delta;
-                  rate[2] = m*T;
+                  rate[2] = m1*T;
                   reulermultinom(2,Is,&rate[1],dt,&dN[1]);
                   rate[3] = eta2*Vbr;
                   dN[3] = rpois(rate[3]*dt);
                   rate[4] = delta;
-                  rate[5] = m*T;
+                  rate[5] = m2*T;
                   reulermultinom(2,Ib,&rate[4],dt,&dN[4]);
                   rate[6] = alpha*(Ib+Is)/(Ib+Is+w+1);
                   dN[6] = rpois(rate[6]*dt);
                   rate[7] = (d+0.01)*T;
                   dN[7] = rpois(rate[7]*dt);
-                  rate[8] = p*Is;
+                  rate[8] = p1*Is;
                   dN[8] = rpois(rate[8]*dt);
                   rate[9] = c;
-                  rate[10] = mu/V_0;
+                  rate[10] = mu*4.54/V_0;
                   reulermultinom(2,Vsr,&rate[9],dt,&dN[9]);
-                  rate[11] = p*Ib;
+                  rate[11] = p2*Ib;
                   dN[11] = rpois(rate[11]*dt);
                   rate[12] = c;
                   rate[13] = mu/V_0;
@@ -238,9 +238,9 @@ lik+=dnorm(log(N_Vsr_10+1),log(Vsr+1),sg_rho,1);
 lik = (give_log) ? lik : exp(lik);
 ")
 
-param_names = c("p","c","delta","body_rho","sg_rho","rho2","alpha","d","m","mu","eta","eta2","w","background_init","factor","area_sg","area_b","V_0")
+param_names = c("p1","p2","c","delta","body_rho","sg_rho","rho2","alpha","d","m1","m2","mu","eta","eta2","w","background_init","factor","area_sg","area_b","V_0")
 state_names = c("Vsr","Vs","Is","T","Vbr","Ib","Vb")
-par_trans = parameter_trans(log = c("p","c","delta","alpha","w","d","eta","eta2","mu"),logit = c("m"))
+par_trans = parameter_trans(log = c("p1","p2","c","delta","alpha","w","d","eta","eta2","mu"),logit = c("m1","m2"))
 
 mcmv <- pomp(
   data=merge(dat3,data.frame(time = 0:32),all = TRUE),
@@ -254,13 +254,13 @@ mcmv <- pomp(
   statenames=state_names
 )
 
-enames = c("d","alpha","m","mu","eta","eta2","w")
+enames = c("d","alpha","m1","m2","mu","eta","eta2","w","p1","p2")
 
-params_init = c(p =10^2,c = 8.8,delta = 1,body_rho = body_rho,sg_rho = sg_rho,rho2 = 0.95,V_0 = 1000,
-                m =0.25,alpha =37,d =0.1,mu = 0.85, eta = 0.174,eta2 = 0.608,w = 1*10^7,
+params_init = c(p1 =10^2,p2 = 10^2,c = 8.8,delta = 1,body_rho = body_rho,sg_rho = sg_rho,rho2 = 0.95,V_0 = 1000,
+                m1 =0.25,m2 = 0.025,alpha =37,d =0.1,mu = 0.85, eta = 0.174,eta2 = 0.608,w = 1*10^7,
                 background_init = background_init,factor = factor,area_sg = area_sg,area_b = area_b)
 
-for (i in 1:5){
+for (i in 1:10){
   ofun <- mcmv %>%
     traj_objfun(
       est=enames,
