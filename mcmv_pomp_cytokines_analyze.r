@@ -10,7 +10,7 @@ scientific_10_1 <- function(x) {
 }
 
 #this line only needs to be run once - it fits model to each individual mouse's data (saves results as sim_all_init_v_0.csv)
-#source("mcmv_pomp_cytokines_function.r")
+source("mcmv_pomp_cytokines_function.r")
 
 sim_all_init = read.csv("sim_all_init_v_0.csv")
 
@@ -30,12 +30,13 @@ sim_all$fit[sim_all$species%in%c("Vsr","Vbr","Ib","C","Is")]=log10(sim_all$fit[s
 
 sim_all$species = revalue(sim_all$species,c("Salivary Gland"="Salivary\nGlands"))
 
-fit = subset(sim_all[,c(1,2,4,6,7,30)],species%in%c("Body","Salivary\nGlands","IE1"))
+ribbon = subset(sim_all[,c(1:3,5,31)],species%in%c("Body","Salivary\nGlands","IE1"))
+ribbon$species = factor(ribbon$species,levels = c("Salivary\nGlands","Body","IE1"))
+fit = subset(sim_all[,c(1,2,4,6,7,31)],species%in%c("Body","Salivary\nGlands","IE1"))
 fit$species = factor(fit$species,levels = c("Salivary\nGlands","Body","IE1"))
 fit = na.omit(melt(fit,id = c("time","species","mouse")))
 fit$variable = factor(fit$variable,levels = c("dat","fit","med"))
 fit$variable = revalue(fit$variable,c("dat"="Data","fit"="ODE Fit","med"="Stochastic Simulation\nMedian"))
-
 
 fit_chosen = subset(fit,mouse%in%c(paste0("4D-",c(1,2,3,4,5)))&variable%in%c("Data","ODE Fit"))
 fit_chosen$mouse = revalue(fit_chosen$mouse,c("4D-1"="i","4D-2"="ii","4D-3"="iii","4D-4"="iv","4D-5"="v"))
@@ -104,16 +105,17 @@ likelihood_sg = unique(sim_all_init[,c(28:30)])#normalized by dividing likelihoo
 likelihood_sg = arrange(likelihood_sg,like_norm)
 
 #Examine parameter values of each mouse's fits
-params = unique(sim_all_init[,c(14:19,21:23,30)])
+params = unique(sim_all_init[,c(8:31)])
 params2 = melt(params)
 
 
 #adjust to correct for fitting transformations
 params2$value[params2$variable=="d"]=params2$value[params2$variable=="d"]+0.01
-params2$value[params2$variable=="m"]=params2$value[params2$variable=="m"]+0.0001
 params2$value[params2$variable=="w"]=params2$value[params2$variable=="w"]+1
 params2$value[params2$variable=="mu"]=params2$value[params2$variable=="mu"]/1000
-params2$value[params2$variable=="eta2"]=params2$value[params2$variable=="eta2"]+10^(-3)
+params2$value[params2$variable=="p2"]=params2$value[params2$variable=="p2"]*10^4+5
+params2$value[params2$variable=="eta2"]=params2$value[params2$variable=="eta2"]+0.02
+params2$value[params2$variable=="m"]=params2$value[params2$variable=="m"]*4
 
 params2 = params2 %>% separate(mouse, c("group", "Mouse"), sep = "-")
 
@@ -127,8 +129,8 @@ params2 = params2 %>% separate(mouse, c("group", "Mouse"), sep = "-")
           strip.text = element_text(size = 12)))
 
 #Calculate R_0 for each mouse and look at median
-params_R0 = spread(params2,variable,value)
-R_0 = unique(sim_all_init$p)/unique(sim_all_init$delta)*(params_R0$eta2+params_R0$eta)/(2*unique(sim_all_init$c))
-median(R_0)
-quantile(R_0,0.05)
-quantile(R_0,0.95)
+params_R0 = dcast(params2, group+Mouse~ variable, value.var="value")
+R_0 = params_R0%>%dplyr::group_by(group,Mouse)%>%dplyr::summarize(R0 = mu/(mu+4.54*mu)*eta*p1/(delta*c)+4.54*mu/(mu+4.54*mu)*eta2*p2/(delta*c))
+median(R_0$R0)
+quantile(R_0$R0,0.05)
+quantile(R_0$R0,0.95)
