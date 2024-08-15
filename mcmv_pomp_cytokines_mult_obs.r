@@ -66,52 +66,51 @@ dat4$species <- factor(dat4$species, levels = c("Body","Salivary Glands","IE1"))
 dat4 = na.omit(dat4)
 
 model <- vectorfield(
-  Csnippet("DC = beta*Vsr-z*C;
+  Csnippet("
+            double fun;
+              fun = (1-b1*t/(b2+t));
             DIs =eta*Vsr-delta*Is;
             DIb = eta2*Vbr-delta*Ib-m*Ib*T;
             DT = alpha*(Ib+Is)/(Ib+Is+w+1)-(d+0.01)*T;
-            DVsr = p*(exp(-y*C))*Is-c*Vsr-mu/V_0*Vsr+mu/V_0*Vbr;
-            DVbr = p*Ib-c*Vbr+mu/V_0*Vsr-mu/V_0*Vbr;
+            DVsr = p1*fun*Is-c*Vsr-mu*4.54/V_0*Vsr+mu/V_0*Vbr;
+            DVbr = p2*Ib-c*Vbr+mu*4.54/V_0*Vsr-mu/V_0*Vbr;
             DVs = DVsr;
             DVb = DVbr;"))
 
 rproc <- Csnippet("
                   #define MAX(x, y) (((x) > (y)) ? (x) : (y))
-                  double rate[15];
-                  double dN[15];
-                  rate[0] = beta*Vsr;
+                  double rate[13];
+                  double dN[13];
+                  double fun;
+                    fun = (1-b1*t/(b2+t));
+                  rate[0] = eta*Vsr;
                   dN[0] = rpois(rate[0]*dt);
-                  rate[1] = z*C;
+                  rate[1] = delta*Is;
                   dN[1] = rpois(rate[1]*dt);
-                  rate[2] = eta*Vsr;
+                  rate[2] = eta2*Vbr;
                   dN[2] = rpois(rate[2]*dt);
-                  rate[3] = delta*Is;
-                  dN[3] = rpois(rate[3]*dt);
-                  rate[4] = eta2*Vbr;
-                  dN[4] = rpois(rate[4]*dt);
-                  rate[5] = delta;
-                  rate[6] = m*T;
-                  reulermultinom(2,Ib,&rate[5],dt,&dN[5]);
-                  rate[7] = alpha*(Ib+Is)/(Ib+Is+w+1);
+                  rate[3] = delta;
+                  rate[4] = m*T;
+                  reulermultinom(2,Ib,&rate[3],dt,&dN[3]);
+                  rate[5] = alpha*(Ib+Is)/(Ib+Is+w+1);
+                  dN[5] = rpois(rate[5]*dt);
+                  rate[6] = (d+0.01)*T;
+                  dN[6] = rpois(rate[6]*dt);
+                  rate[7] = p1*fun*Is;
                   dN[7] = rpois(rate[7]*dt);
-                  rate[8] = (d+0.01)*T;
-                  dN[8] = rpois(rate[8]*dt);
-                  rate[9] = p*(exp(-y*C))*Is;
-                  dN[9] = rpois(rate[9]*dt);
-                  rate[10] = c;
-                  rate[11] = mu/V_0;
-                  reulermultinom(2,Vsr,&rate[10],dt,&dN[10]);
-                  rate[12] = p*Ib;
-                  dN[12] = rpois(rate[12]*dt);
-                  rate[13] = c;
-                  rate[14] = mu/V_0;
-                  reulermultinom(2,Vbr,&rate[13],dt,&dN[13]);
-                  C = MAX((C+dN[0]-dN[1]),0);
-                  Is = MAX((Is+dN[2]-dN[3]),0);
-                  Ib = MAX((Ib+dN[4]-dN[5]-dN[6]),0);
-                  T  = MAX((T+dN[7]-dN[8]),0);
-                  Vsr = MAX((Vsr+dN[9]-dN[10]-dN[11]+dN[14]),0);
-                  Vbr = MAX((Vbr+dN[12]-dN[13]+dN[11]-dN[14]),0);
+                  rate[8] = c;
+                  rate[9] = mu/V_0*4.54;
+                  reulermultinom(2,Vsr,&rate[8],dt,&dN[8]);
+                  rate[10] = p2*Ib;
+                  dN[10] = rpois(rate[10]*dt);
+                  rate[11] = c;
+                  rate[12] = mu/V_0;
+                  reulermultinom(2,Vbr,&rate[11],dt,&dN[11]);
+                  Is = MAX((Is+dN[0]-dN[1]),0);
+                  Ib = MAX((Ib+dN[2]-dN[3]-dN[4]),0);
+                  T  = MAX((T+dN[5]-dN[6]),0);
+                  Vsr = MAX((Vsr+dN[7]-dN[8]-dN[9]+dN[12]),0);
+                  Vbr = MAX((Vbr+dN[10]-dN[11]+dN[9]-dN[12]),0);
                   Vs = Vsr+background_init*factor*area_sg;
                   Vb = Vbr+background_init*factor*area_b;
                   ")
@@ -123,7 +122,6 @@ init <- Csnippet("
                  Vb = background_init*factor*area_b;
                  Ib = 0;
                  Is = 0;
-                 C = 0;
                  T=0;
                  ")
 
@@ -242,9 +240,9 @@ lik+=dnorm(log(N_Vsr_10+1),log(Vsr+1),sg_rho,1);
 lik = (give_log) ? lik : exp(lik);
 ")
 
-param_names = c("p","c","delta","sg_rho","body_rho","rho2","alpha","d","m","mu","eta","eta2","z","y","beta","w","background_init","factor","area_sg","area_b","V_0")
-state_names = c("Vsr","Vs","Is","T","Vbr","Ib","Vb","C")
-par_trans = parameter_trans(log = c("p","c","delta","alpha","w","d","eta","eta2","z","beta","mu"),logit = c("y","m"))
+param_names = c("p1","p2","c","delta","sg_rho","body_rho","rho2","alpha","d","m","mu","eta","eta2","b1","b2","w","background_init","factor","area_sg","area_b","V_0")
+state_names = c("Vsr","Vs","Is","T","Vbr","Ib","Vb")
+par_trans = parameter_trans(log = c("p1","p2","c","delta","alpha","w","d","eta","eta2","mu","b2"),logit = c("b1","m"))
 
 
 mcmv <- pomp(
@@ -259,13 +257,14 @@ mcmv <- pomp(
   statenames=state_names
 )
 
-enames = c("d","alpha","m","mu","eta","eta2","y","beta","w")
+enames = c("d","alpha","m","mu","eta","eta2","b1","b2","w","p1","p2")
 
-params_init = c(p =10^2,c = 8.8,delta = 1,sg_rho = sg_rho, body_rho = body_rho,rho2 = 0.95,V_0 = 1000,
-                m =0.25,alpha =37,d =0.1,mu = 0.85, eta = 0.174,eta2 = 0.608,z = 10^(-2),y = 3*10^(-5),beta = 1.26*10^(-3),w = 1*10^7,
+params_init = c(p1 =10^2,p2=10^2,c = 8.8,delta = 1,sg_rho = sg_rho, body_rho = body_rho,rho2 = 0.95,V_0 = 1000,
+                m =0.25,alpha =37,d =0.1,mu = 0.85, eta = 0.174,eta2 = 0.608,b1 = 0.95,b2 = 10,w = 1*10^7,
                 background_init = background_init,factor = factor,area_sg = area_sg,area_b = area_b)
 
-for (i in 1:5){
+for (i in 1:10){
+  print(i)
   ofun <- mcmv %>%
     traj_objfun(
       est=enames,
@@ -296,7 +295,7 @@ for (i in 1:5){
 tdat <- mcmv %>%
   trajectory(params = pars_fit,format="data.frame")
 
-tdat = melt(tdat[,c(2,4,7,9)],id="time")
+tdat = melt(tdat[,c(2,4,7,8)],id="time")
 colnames(tdat)=c("time","species","fit")
 
 tdat$species = revalue(tdat$species,c("Vb"="Body","Vs"="Salivary Glands","T"="IE1"))
@@ -355,7 +354,7 @@ mcmv <- pomp(
 simul <- as.data.frame(simulate(mcmv,params = pars_fit,
                                 nsim=100))
 
-simul = melt(simul[,c(1:31,60)],id = c("time",".id"))
+simul = melt(simul[,c(1:31,59)],id = c("time",".id"))
 simul = simul%>%separate(variable,c("N","Species","Number"),sep="_")
 simul = simul[,c(1,4,6)]
 colnames(simul) = c("time","species","counts")
@@ -385,5 +384,3 @@ AIC = get_AIC(fit)
 simul_quantile$AIC = AIC
 
 simul_quantile = cbind(simul_quantile,t(pars_fit))
-
-
