@@ -21,13 +21,12 @@ area_b = subset(data,Site=="Body")$AREA.Pixels..cm.2[1]
 background_init = mean(background$MEAN.Photons.s.cm.2.sr)
 
 init <- Csnippet("
-                 Vs_r = V_0;
-                 Vb_r = 0;
+                 Vsr = V_0;
+                 Vbr = 0;
                  Vs = V_0+background_init*factor*area_sg;
                  Vb = background_init*factor*area_b;
                  Ib = 0;
                  Is = 0;
-                 C = 0;
                  T=0;
                  ")
 
@@ -37,72 +36,77 @@ if (!ISNA(N_T)){
 lik+=dpois(N_T,T*rho2+1e-6,1);
 }
 if(!ISNA(N_Vs)){
-lik+=dnorm(log(N_Vs),log(Vs),rho1,1);
+lik+=dnorm(log(N_Vs),log(Vs),sg_rho,1);
 }
 if(!ISNA(N_Vb)){
-lik+=dnorm(log(N_Vb),log(Vb),rho1,1);
+lik+=dnorm(log(N_Vb),log(Vb),body_rho,1);
 }
 lik = (give_log) ? lik: exp(lik);
 ")
 
 model <- vectorfield(
-  Csnippet("DC = beta*Vs_r-z*C;
-            DIs =eta*Vs_r-delta*Is;
-            DIb = (eta2+pow(10,-3))*Vb_r-delta*Ib-m*Ib*T;
+  Csnippet("
+            double fun;
+              fun = (1-b1*t/(b2+t));
+            DIs =eta*Vsr-delta*Is;
+            DIb = (eta2+0.02)*Vbr-delta*Ib-m*4*Ib*T;
             DT = alpha*(Ib+Is)/(Ib+Is+w+1)-(d+0.01)*T;
-            DVs_r = p*(exp(-y*C))*Is-c*Vs_r-mu*Vs_r+mu*Vb_r;
-            DVb_r = p*Ib-c*Vb_r+mu*Vs_r-mu*Vb_r;
-            DVs = DVs_r;
-            DVb = DVb_r;"))
+            DVsr = p1*fun*Is-c*Vsr-mu*4.54/V_0*Vsr+mu/V_0*Vbr;
+            DVbr = (p2*pow(10,4)+5)*Ib-c*Vbr+mu*4.54/V_0*Vsr-mu/V_0*Vbr;
+            DVs = DVsr;
+            DVb = DVbr;"))
 
-param_names = c("p","c","delta","rho1","rho2","alpha","d","m","mu","eta","eta2","z","y","beta","w","background_init","factor","area_sg","area_b","V_0")
-state_names = c("Vs_r","Vs","Is","T","Vb_r","Ib","Vb","C")
-par_trans = parameter_trans(log = c("p","c","delta","rho1","alpha","w","eta","eta2","z","beta","mu"),logit = c("rho2","y","d","m"))
+params= c(p1 =5.135371e+01,p2 =(2.362485e+01-5)/10^4 ,c = 8.8,delta = 1,sg_rho =0.50,body_rho = 0.95,rho2 = 0.95,V_0 = 1000,
+          m =1.721741e+00/4,alpha =1.119982e+03,d =6.774195e-02-0.01,mu = 4.969600e-01*1000, eta = 2.694176,eta2 = 3.509228e-01-0.02,
+          b1 = 9.722730e-01,b2 = 5.962192e-01, w=7.298715e+08-1,
+          background_init = background_init,factor = factor,area_sg = area_sg,area_b = area_b)
+
+param_names = c("p1","p2","c","delta","sg_rho","body_rho","rho2","alpha","d","m","mu","eta","eta2","b1","b2","w","background_init","factor","area_sg","area_b","V_0")
+state_names = c("Vsr","Vs","Is","T","Vbr","Ib","Vb")
+par_trans = parameter_trans(log = c("p1","c","delta","alpha","w","d","eta","eta2","mu","b2"),logit = c("b1","m","p2"))
 
 rproc <- Csnippet("
                   #define MAX(x, y) (((x) > (y)) ? (x) : (y))
-                  double rate[15];
-                  double dN[15];
-                  rate[0] = beta*Vs_r;
+                  double rate[13];
+                  double dN[13];
+                  double fun;
+                    fun = (1-b1*t/(b2+t));
+                  rate[0] = eta*Vsr;
                   dN[0] = rpois(rate[0]*dt);
-                  rate[1] = z*C;
+                  rate[1] = delta*Is;
                   dN[1] = rpois(rate[1]*dt);
-                  rate[2] = eta*Vs_r;
+                  rate[2] = (eta2+0.02)*Vbr;
                   dN[2] = rpois(rate[2]*dt);
-                  rate[3] = delta*Is;
-                  dN[3] = rpois(rate[3]*dt);
-                  rate[4] = (eta2+pow(10,-3))*Vb_r;
-                  dN[4] = rpois(rate[4]*dt);
-                  rate[5] = delta;
-                  rate[6] = (m+0.0001)*T;
-                  reulermultinom(2,Ib,&rate[5],dt,&dN[5]);
-                  rate[7] = alpha*(Ib+Is)/(Ib+Is+w+1);
+                  rate[3] = delta;
+                  rate[4] = m*2*T;
+                  reulermultinom(2,Ib,&rate[3],dt,&dN[3]);
+                  rate[5] = alpha*(Ib+Is)/(Ib+Is+w+1);
+                  dN[5] = rpois(rate[5]*dt);
+                  rate[6] = (d+0.01)*T;
+                  dN[6] = rpois(rate[6]*dt);
+                  rate[7] = p1*fun*Is;
                   dN[7] = rpois(rate[7]*dt);
-                  rate[8] = (d+0.01)*T;
-                  dN[8] = rpois(rate[8]*dt);
-                  rate[9] = p*(exp(-y*C))*Is;
-                  dN[9] = rpois(rate[9]*dt);
-                  rate[10] = c;
-                  rate[11] = mu;
-                  reulermultinom(2,Vs_r,&rate[10],dt,&dN[10]);
-                  rate[12] = p*Ib;
-                  dN[12] = rpois(rate[12]*dt);
-                  rate[13] = c;
-                  rate[14] = mu;
-                  reulermultinom(2,Vb_r,&rate[13],dt,&dN[13]);
-                  C = MAX((C+dN[0]-dN[1]),0);
-                  Is = MAX((Is+dN[2]-dN[3]),0);
-                  Ib = MAX((Ib+dN[4]-dN[5]-dN[6]),0);
-                  T  = MAX((T+dN[7]-dN[8]),0);
-                  Vs_r = MAX((Vs_r+dN[9]-dN[10]-dN[11]+dN[14]),0);
-                  Vb_r = MAX((Vb_r+dN[12]-dN[13]+dN[11]-dN[14]),0);
-                  Vs = Vs_r+background_init*factor*area_sg;
-                  Vb = Vb_r+background_init*factor*area_b;
+                  rate[8] = c;
+                  rate[9] = mu/V_0*4.54;
+                  reulermultinom(2,Vsr,&rate[8],dt,&dN[8]);
+                  rate[10] = (p2*pow(10,4)+5)*Ib;
+                  dN[10] = rpois(rate[10]*dt);
+                  rate[11] = c;
+                  rate[12] = mu/V_0;
+                  reulermultinom(2,Vbr,&rate[11],dt,&dN[11]);
+                  Is = MAX((Is+dN[0]-dN[1]),0);
+                  Ib = MAX((Ib+dN[2]-dN[3]-dN[4]),0);
+                  T  = MAX((T+dN[5]-dN[6]),0);
+                  Vsr = MAX((Vsr+dN[7]-dN[8]-dN[9]+dN[12]),0);
+                  Vbr = MAX((Vbr+dN[10]-dN[11]+dN[9]-dN[12]),0);
+                  Vs = Vsr+background_init*factor*area_sg;
+                  Vb = Vbr+background_init*factor*area_b;
                   ")
 
+
 rmeas = Csnippet("
-            N_Vs = exp(rnorm(log(Vs),rho1));
-            N_Vb = exp(rnorm(log(Vb),rho1));
+            N_Vs = exp(rnorm(log(Vs),sg_rho));
+            N_Vb = exp(rnorm(log(Vb),body_rho));
             N_T = rbinom(T,rho2);")
 
 mcmv <- pomp(
@@ -120,9 +124,9 @@ mcmv <- pomp(
 sim_fun = function(params_chosen){
   simul <- as.data.frame(simulate(mcmv,params = params_chosen,
                                   nsim=1000))
-  colnames(simul)[13]="number"
+  colnames(simul)[12]="number"
   
-  simul = melt(simul[,c(1:4,5,7,9,10,12,13)],id = c("time","number"))
+  simul = melt(simul[,c(1:4,5,7,8,9,10,12)],id = c("time","number"))
   
   colnames(simul) = c("time","number","species","counts")
   
@@ -132,17 +136,14 @@ sim_fun = function(params_chosen){
   return (simul)
   
 }
-params= c(p =10^2,c = 8.8,delta = 1,rho1 =0.50,rho2 = 0.95,V_0 = 1000,
-          m =0.633-0.0001,alpha =193,d =0.0838-0.01,mu = 0.533*1000, eta = 0.261,eta2 = 0.0574-10^(-3),
-          z = 10^(-2),y = 5.32*10^(-5),beta = 2.05*10^(-3),w = 1.21*10^7-1,
-          background_init = background_init,factor = factor,area_sg = area_sg,area_b = area_b)
+
 
 
 #Simulate model for all potential viral loads
 all_sim = NULL
 for (i in seq(10,300,10)){
   params_chosen = params
-  params_chosen[6]=i
+  params_chosen[8]=i
   hi = data.frame(sim_fun(params_chosen),V_init = i)
   all_sim = rbind(all_sim,hi)
 }
@@ -151,9 +152,9 @@ all_sim$number_Vinit = paste0(all_sim$number,"_",all_sim$V_init)
 
 #Define different types of infections - based on whether viral loads increase and the site of where replication is occurring (not mutually exclusive)
 #active viral replication defined as an increase in viral load
-change = subset(all_sim,species%in%c("Vs_r","Vb_r"))
+change = subset(all_sim,species%in%c("Vsr","Vbr"))
 change = dcast(change, time+number+V_init+number_Vinit ~ species, value.var="counts")
-change$total_v = change$Vs_r+change$Vb_r
+change$total_v = change$Vsr+change$Vbr
 change$change = c(NA,(change$total_v[2:nrow(change)]-change$total_v[1:(nrow(change)-1)]))
 change$change[which(change$time==0)]=0
 
@@ -239,8 +240,9 @@ for (i in unique(all_sim$V_init)){
 
 all_frac = rbind(all_frac,trans_transformed)
 
-sum_fit = as.data.frame(all_frac%>%dplyr::filter(type%in%c("successful","trans_transformed"))%>%dplyr::group_by(type)%>%do(fit = nls(percent ~ SSasymp(V_init, yf, y0, log_alpha), data = .)) %>% 
-                          tidy(fit)%>%dplyr::select(type,term,estimate)%>%
+sum_fit = as.data.frame(all_frac%>%dplyr::filter(type%in%c("successful","trans_transformed"))%>%dplyr::group_by(type)%>%do(fit = nls(percent ~ SSasymp(V_init, yf, y0, log_alpha), data = .))%>% 
+                          dplyr::mutate(tidys = list(broom::tidy(fit)))%>%
+                          unnest(tidys)%>%dplyr::select(type,term,estimate)%>%
                           spread(term, estimate) %>% 
                           mutate(alpha = exp(log_alpha)))
 
@@ -268,10 +270,10 @@ id_50_val = log((0.5- end_successful)/(start_successful-end_successful))/(-alpha
           axis.text.x = element_text(size=10), axis.text.y = element_text(size=10),
           axis.title = element_text(size=10),
           strip.text = element_text(size = 10))+
-    scale_x_continuous(limits = c(0,300))+
+    scale_x_continuous(limits = c(0,100))+
     #geom_hline(yintercept = 0.5,colour = "red",size = 1)+
-    geom_label(aes(120,0.5,label=paste0("52,0.50")))+
-    geom_point(aes(x = 51.56918,y = 0.5),size = 2,colour = "red")+
+    geom_label(aes(40,0.5,label=paste0("14,0.50")))+
+    geom_point(aes(x = id_50_val,y = 0.5),size = 2,colour = "red")+
     scale_colour_discrete("Type of Infection",labels = c("Successful Salivary Gland\nInfection","Successful Systemic\nInfection")))
 
 frac_trans_fit = data.frame(V_init = seq(0,500,0.01),fit = end_frac_trans+(start_frac_trans-end_frac_trans)*exp(-alpha_frac_trans*seq(0,500,0.01)),variable= "frac_trans")
@@ -290,18 +292,18 @@ max_trans = frac_trans_og_fit[which(frac_trans_og_fit$fit==max(frac_trans_og_fit
           axis.text.x = element_text(size=10), axis.text.y = element_text(size=10),
           axis.title = element_text(size=10),
           strip.text = element_text(size = 10))+
-    geom_label(aes(120,0.08881065,label=paste0("38,0.089")))+
-    geom_point(aes(x = 37.57,y =0.08881065),size = 2,colour = "red")+
-    scale_x_continuous(limits = c(0,300))+
+    geom_label(aes(20,0.06,label=paste0("11,0.05")))+
+    geom_point(aes(x = 10.83,y =0.05203867),size = 2,colour = "red")+
+    scale_x_continuous(limits = c(0,100))+
     scale_colour_discrete("Type of Infection",labels = c("Successful Salivary Gland\nInfection","Successful Systemic\nInfection")))
 
 
 #Repeat simulation for just the viral load at which transient infection in the salivary glands is most likely to occur (38 pfu)
 
 all_sim = NULL
-for (i in 38){
+for (i in 11){
   params_chosen = params
-  params_chosen[6]=i
+  params_chosen[8]=i
   hi = data.frame(sim_fun(params_chosen),V_init = i)
   all_sim = rbind(all_sim,hi)
 }
@@ -309,9 +311,9 @@ for (i in 38){
 all_sim$number_Vinit = paste0(all_sim$number,"_",all_sim$V_init)
 
 #active viral replication defined as an increase in viral load
-change = subset(all_sim,species%in%c("Vs_r","Vb_r"))
+change = subset(all_sim,species%in%c("Vsr","Vbr"))
 change = dcast(change, time+number+V_init+number_Vinit ~ species, value.var="counts")
-change$total_v = change$Vs_r+change$Vb_r
+change$total_v = change$Vsr+change$Vbr
 change = arrange(change,number,time)
 change$change = c(NA,(change$total_v[2:nrow(change)]-change$total_v[1:(nrow(change)-1)]))
 change$change[which(change$time==0)]=0
@@ -365,16 +367,13 @@ all_data = rbind(frac_successful_long,frac_unsuccessful,frac_transient_sg,frac_t
 
 max_Is= as.data.frame(frac_transient_sg%>%dplyr::filter(species=="Is")%>%dplyr::group_by(number,species)%>%dplyr::slice(which.max(counts)))
 
-ggplot(max_Is,aes(x = species,y = counts,colour = type))+geom_boxplot()+scale_y_continuous(limits = c(0,6))
-
-ggplot(max_Is,aes(x = species,y = time,colour = type))+geom_boxplot()+scale_y_continuous(limits = c(0,4))
-
 #what time does Is reach its maximum?
 quantile(max_Is$time,c(0.05,0.25,0.5,0.75,0.95))
 #what is the maximum number of Is?
 quantile(max_Is$counts,c(0.05,0.25,0.5,0.75,0.95))
 
 Is_dynamics = as.data.frame(frac_transient_sg%>%dplyr::filter(species=="Is")%>%dplyr::group_by(time)%>%dplyr::summarize(lo = quantile(counts,0.05),
+                                                                                                                        med = quantile(counts,0.5),
                                                                                                                         med = quantile(counts,0.5),
                                                                                                                         high = quantile(counts,0.95)))
 
